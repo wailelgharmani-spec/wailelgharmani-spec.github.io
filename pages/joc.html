@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Código del Juego</title>
+  <style>
+    body {
+      background: #1e1e1e;
+      color: #fff;
+      font-family: Consolas, monospace;
+      padding: 20px;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      background: #111;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #444;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Código del Juego</h2>
+
+<pre>
+<code>
+# Classe meteor
+import random
+import pygame
+import time
+from pygame.locals import *
+
+class Joc:
+    def __init__(self, AMPLE, ALT, FPS, nombre_meteors):
+        self.ample = AMPLE
+        self.alt = ALT
+        self.fps = FPS
+        self.pantalla = pygame.display.set_mode((self.ample, self.alt))
+        self.meteors = []
+        self.numero_meteors = nombre_meteors
+        self.rellotge = pygame.time.Clock()
+        self.nau = Nau('assets/nave1.png',5,0,0,3, 'assets/vida.png')
+        self.punts = 0
+        pygame.mixer.init()
+        self.so_colisio = pygame.mixer.Sound(&quot;assets/explosio.mp3&quot;)
+        self.so_game_over = pygame.mixer.Sound(&quot;assets/game_over.mp3&quot;)
+        self.so_inici = pygame.mixer.Sound(&quot;assets/inici.mp3&quot;)
+        self.so_pantalla_joc = pygame.mixer.Sound(&quot;assets/pantalla_joc.mp3&quot;)
+
+        pygame.init()
+
+    def iniciar_joc(self):
+        while True:
+            self.preparar_partida()
+            self.mostrar_pantalla_inici()
+            self.mostrar_pantalla_joc()
+
+    def preparar_partida(self):
+        self.meteors.clear()
+        # generar els meteors
+        for i in range (self.numero_meteors):
+            meteor_aux = Meteor('assets/meteor.png',0,0,0)
+            meteor_aux.start()
+            self.meteors.append(meteor_aux)
+        self.nau = Nau('assets/nave1.png',5,300,450,3, 'assets/vida.png')
+
+    def mostrar_pantalla_inici(self):
+        imatge_inici = pygame.image.load(&quot;assets/pantalla_inici.png&quot;)
+        self.so_inici.play()
+        esperant_enter = True
+
+        while esperant_enter:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN:
+                        esperant_enter = False
+
+            self.pantalla.blit(imatge_inici, (0, 0))
+            pygame.display.update()
+            self.rellotge.tick(self.fps)
+
+    def mostrar_pantalla_game_over(self):
+        img_game_over = pygame.image.load('assets/game_over.png')
+        self.so_game_over.play()
+        esperant_enter = True
+
+        while esperant_enter:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN:
+                        esperant_enter = False
+
+            self.pantalla.blit(img_game_over, (0, 0))
+            pygame.display.update()
+            self.rellotge.tick(self.fps)
+
+    def mostrar_pantalla_joc(self):
+        self.so_pantalla_joc.play(-1)
+        while True:
+            # gestionem els events del videojoc:
+            # entrada de l'usuari de teclat, ratolí, joystick:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+
+            self.pantalla.fill((0, 0, 0))
+            self.moure_meteors()
+            self.moure_nau()
+            self.dibuixar_meteors()
+            self.dibuixar_nau()
+
+            if self.dibuixar_vides():
+                self.so_pantalla_joc.stop()
+                self.mostrar_pantalla_game_over()
+                return
+
+            self.control_colisions()
+            self.dibuixar_vides()
+            self.dibuixar_punts()
+            self.actualitzar_pantalla()
+
+    def control_colisions(self):
+        for met in (self.meteors):
+            if met.rect_meteor.colliderect(self.nau.rect):
+                self.so_colisio.play()
+                met.start()
+                self.nau.restar_vida()
+
+    def moure_nau(self):
+        keys = pygame.key.get_pressed()
+        if keys[K_a] or keys[K_LEFT]:
+            self.nau.rect.x -= self.nau.velocitat
+        if keys[K_d] or keys[K_RIGHT]:
+            self.nau.rect.x += self.nau.velocitat
+        if keys[K_w] or keys[K_UP]:
+            self.nau.rect.y -= self.nau.velocitat
+        if keys[K_s] or keys[K_DOWN]:
+            self.nau.rect.y += self.nau.velocitat
+
+    def dibuixar_vides(self):
+        if self.nau.vides &gt;= 1:
+            self.pantalla.blit(self.nau.img_vida, (580, 20))
+        if self.nau.vides &gt;= 2:
+            self.pantalla.blit(self.nau.img_vida, (540, 20))
+        if self.nau.vides &gt;= 3:
+            self.pantalla.blit(self.nau.img_vida, (500, 20))
+        if self.nau.vides &lt;= 0:
+            return True
+        return False
+
+    def dibuixar_punts(self):
+        font = pygame.font.SysFont(None, 32)
+        img_punts = font.render(str(self.punts), True, (255, 255, 255))
+        self.pantalla.blit(img_punts, (140, 30))
+
+    def moure_meteors(self):
+        for met in (self.meteors):
+            met.y += met.velocitat
+            met.rect_meteor = met.img_meteor.get_rect(midbottom=(met.x, met.y))
+
+    def dibuixar_meteors(self):
+        for met in (self.meteors):
+            self.pantalla.blit(met.img_meteor, met.rect_meteor)
+            self.punts += met.end()
+
+    def dibuixar_nau(self):
+        self.pantalla.blit(self.nau.img, self.nau.rect)
+        self.nau.rect.clamp_ip(self.pantalla.get_rect())
+
+    def actualitzar_pantalla(self):
+        pygame.display.update()
+        self.rellotge.tick(self.fps)
+
+class Meteor:
+    def __init__(self, imatge, velocitat, pos_x, pos_y):
+        self.imatge = imatge
+        self.velocitat = velocitat
+        self.x = pos_x
+        self.y = pos_y
+        self.img_meteor = pygame.image.load(self.imatge)
+        self.rect_meteor = self.img_meteor.get_rect(midbottom=(self.x, self.y))
+
+    def start(self):
+        self.x = random.randint(30, 610)
+        self.y = -64
+        self.velocitat = random.randint(2, 10)
+
+    def collide(self):
+        pass
+
+    def end(self):
+        p = 0
+        if self.y &gt;= 480:
+            self.start()
+            p = 5
+        return p
+
+class Nau:
+    def __init__(self, imatge, velocitat, pos_x, pos_y, vides, imatge_vida):
+        self.imatge = imatge
+        self.velocitat = velocitat
+        self.x = pos_x
+        self.y = pos_y
+        self.img = pygame.image.load(self.imatge)
+        self.rect = self.img.get_rect(midbottom=(self.x, self.y))
+        self.vides = vides
+        self.vides_originals = vides
+        self.img_vida = pygame.image.load(imatge_vida)
+
+    def start(self):
+        self.x = 300
+        self.y = 460
+        self.vides = self.vides_originals
+
+    def moure(self):
+        pass
+
+    def restar_vida(self):
+        self.vides -= 1
+
+partida = Joc(640,480,60, 4)
+partida.iniciar_joc()
+</code>
+</pre>
+
+</body>
+</html>
